@@ -1,0 +1,5 @@
+streamlit>=1.28
+pandas>=2.0
+plotly>=6.0
+kagglehub>=0.0.9
+numpy>=1.24
