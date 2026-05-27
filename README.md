@@ -1,77 +1,161 @@
-# Dashboard Visual de Anime 2024
+# OLAP - Anime & Manga Analytics
 
-Este proyecto carga el dataset de Kaggle `Top Anime Dataset 2024` y crea un dashboard visual con recomendaciones y una gráfica de los animes con más reseñas.
+Este proyecto es un sistema local OLAP para analizar datos de Anime y Manga a partir de un dataset de MyAnimeList. El objetivo es facilitar la toma de decisiones con consultas SQL, gráficos y un dashboard interactivo.
 
-## Qué hace
+## Descripción general
 
-- Descarga el dataset con `kagglehub`
-- Carga los datos en SQLite
-- Ejecuta consultas SQL para generar el dashboard
-- Muestra un gráfico de los animes con más reseñas
-- Ofrece recomendaciones basadas en `rating` y `reviews`
-- Permite filtrar por género
+El sistema usa:
+- `setup_database.py` para cargar los CSV de `data/anime_dataset.csv` y `data/manga_dataset.csv`.
+- SQLite como base de datos local: `data/olap.db`.
+- `dashboard.py` para mostrar el dashboard en Streamlit.
+- Consultas predefinidas y un constructor de consultas personalizadas.
 
-## Cómo usarlo
+La idea es ver rápidamente qué series tienen mejor puntuación, qué géneros dominan, cómo ha cambiado el interés con el tiempo, qué tiene más popularidad y cómo se distribuyen los formatos.
 
-1. Descarga el dataset desde Kaggle si no lo tienes:
-   https://www.kaggle.com/datasets/bhavyadhingra00020/top-anime-dataset-2024
-2. Copia el archivo CSV en la carpeta del proyecto como `data/top_anime_2024.csv`.
-   - También se aceptan nombres alternativos: `data/top_anime.csv`, `data/anime.csv`, `top_anime_2024.csv`, `top_anime.csv`, `anime.csv`
-3. Instala las dependencias:
+## Cómo ejecutar el proyecto
+
+1. Asegúrate de tener los dos archivos CSV en la carpeta `data/`:
+   - `data/anime_dataset.csv`
+   - `data/manga_dataset.csv`
+2. Instala dependencias:
    ```bash
    pip install -r requirements.txt
    ```
-4. Ejecuta la aplicación SQL:
+3. Ejecuta la creación de la base de datos:
    ```bash
-   streamlit run app_sql.py
+   python setup_database.py
+   ```
+4. Inicia el dashboard:
+   ```bash
+   streamlit run dashboard.py
    ```
 
-## Qué verás en `app_sql.py`
+## Qué hace cada parte del sistema
 
-- Descarga automática del dataset usando `kagglehub`
-- Carga en una base SQLite local `data/anime.db`
-- Consulta SQL de los `Top 12` por reseñas
-- Recomendaciones SQL por:
-  - Mejores Ratings
-  - Más Reseñas
-  - Opción combinada
-- Dashboard visual con gráfico y tabla
+### `setup_database.py`
 
-## Uso directo con SQL
+Este script lee los datasets de anime y manga, normaliza columnas importantes y crea la base SQLite en `data/olap.db`.
 
-- `anime_queries.sql`: consultas SQL reutilizables para llamar desde Python o cualquier cliente SQLite.
-- `anime_sql.py`: script Python que crea o actualiza `data/anime.db` desde el CSV y ejecuta las consultas definidas en `anime_queries.sql`.
+- Crea las tablas `anime` y `manga`.
+- Convierte fechas y años.
+- Agrupa género, puntuación y popularidad.
+- Crea la vista `media_combined` para combinar ambos datasets.
+- Agrega índices para acelerar las consultas.
 
-## Cómo ejecutar `anime_sql.py`
+### `dashboard.py`
 
-1. Asegúrate de tener el CSV en:
-   - `data/top_anime_2024.csv`
-   - `data/top_anime.csv`
-   - `data/anime.csv`
-   - o en la raíz con esos nombres
+En el dashboard hay 5 análisis predefinidos:
 
-2. Ejecuta:
-   ```powershell
-   python anime_sql.py
-   ```
+1. **Top Rated**
+   - Consulta los 20 títulos mejor puntuados.
+   - Ordena por `score` y `scored_by`.
+   - Muestra gráfico de barras horizontal y datos clave.
+   - Resultado real: se ven los animes/mangas con mejores ratings, y el gráfico ayuda a distinguir los más fuertes.
 
-3. Si quieres ejecutar solo una consulta específica, usa un número o nombre:
-   ```powershell
-   python anime_sql.py 1
-   python anime_sql.py top_reviews
-   python anime_sql.py mejor_rating
-   python anime_sql.py mas_reseñas
-   python anime_sql.py combinado
-   python anime_sql.py filtro_genero
-   ```
-4. Si no tienes el CSV local, el script intentará descargar el dataset automáticamente usando `kagglehub`.
+2. **Géneros Populares**
+   - Cuenta cuántos registros hay por género.
+   - Calcula el `AVG(score)` por género.
+   - Muestra un gráfico de barras con la cantidad y la puntuación promedio.
+   - Resultado: pude ver claramente qué géneros aparecen más y cuáles tienen mejor rating.
 
-## Archivos
+3. **Tendencia Temporal**
+   - Agrupa por `year` desde 2000.
+   - Calcula cantidad de títulos y promedio de puntuación.
+   - Muestra una línea de evolución con el número de títulos por año.
+   - Resultado: se observa la subida/bajada de producción y cómo cambia la puntuación promedio.
 
-- `app.py`: dashboard visual en Streamlit sin SQL
-- `app_sql.py`: dashboard con descarga y consultas SQL usando SQLite
-- `anime_queries.sql`: archivo SQL con consultas de ejemplo
-- `anime_sql.py`: script Python que carga el CSV y ejecuta `anime_queries.sql`
-- `requirements.txt`: dependencias necesarias
-- `README.md`: instrucciones de uso
+4. **Popularidad**
+   - Selecciona títulos con `members > 0` y puntuación válida.
+   - Ordena por miembros más activos.
+   - Genera un scatter plot de `members` vs `score`.
+   - Resultado: comprueba qué títulos son populares y si eso coincide con buena puntuación.
+
+5. **Distribución de Tipos**
+   - Agrupa por `type` (TV, Movie, Manga, etc.).
+   - Calcula cantidad, puntaje promedio y miembros promedio.
+   - Muestra un pastel y barras comparando tipos.
+   - Resultado: el gráfico deja ver qué formato es más común y cuáles tienen mejor score.
+
+## Consultas y ejemplos
+
+### Consulta 1: Top 20 por puntuación
+
+```sql
+SELECT title, score, scored_by, type, year, genres
+FROM anime
+WHERE score IS NOT NULL AND score > 0
+ORDER BY score DESC, scored_by DESC
+LIMIT 20;
+```
+- Esta consulta saca los títulos con mejor puntuación.
+- Es útil para saber qué anime o manga merece una recomendación rápida.
+
+### Consulta 2: Géneros más frecuentes
+
+```sql
+SELECT genres, COUNT(*) as count, AVG(score) as avg_score
+FROM anime
+GROUP BY genres
+ORDER BY count DESC
+LIMIT 15;
+```
+- Permite saber qué género aparece más veces.
+- También muestra el rating promedio, para detectar géneros populares y bien valorados.
+
+### Consulta 3: Evolución por año
+
+```sql
+SELECT year, COUNT(*) as cantidad, AVG(score) as avg_score
+FROM anime
+WHERE year >= 2000 AND year IS NOT NULL
+GROUP BY year
+ORDER BY year;
+```
+- Esta consulta ayuda a ver tendencias temporales.
+- Perfecta para analizar si la calidad o volumen crece con el tiempo.
+
+### Consulta 4: Popularidad vs puntuación
+
+```sql
+SELECT title, members, score, type, genres
+FROM anime
+WHERE members > 0 AND score IS NOT NULL AND score > 0
+ORDER BY members DESC
+LIMIT 100;
+```
+- Ayuda a comparar popularidad con calidad.
+- Con el scatter plot se ve si los títulos populares tienen buenos ratings o no.
+
+### Consulta 5: Distribución por tipo
+
+```sql
+SELECT type, COUNT(*) as cantidad, AVG(score) as avg_score, AVG(members) as avg_members
+FROM anime
+GROUP BY type
+ORDER BY cantidad DESC;
+```
+- Permite distinguir entre TV, Movie, OVA, Manga, etc.
+- Resulta útil para identificar qué formato domina en cantidad y cuál es mejor valorado.
+
+## Constructor de consultas personalizadas
+
+Además de los análisis predefinidos, el dashboard tiene:
+
+- Un constructor visual para seleccionar columnas, filtros, orden y límite.
+- Un editor SQL avanzado para escribir consultas directas.
+- Opciones para combinar `anime` y `manga`.
+
+Con esto puedes hacer análisis más específicos, por ejemplo:
+- filtrar por género
+- definir puntuación mínima
+- ver solo los mangas más populares
+- probar distintas combinaciones de campos
+
+## Notas finales
+
+- Yo dejé el diseño con fondo oscuro y gráficos en Plotly.
+- El resultado se ve claro y sirve para apoyar decisiones de recomendación.
+- Si quieres usar el sistema en otro equipo, solo necesitas el CSV original y `pip install -r requirements.txt`.
+
+> Este README está escrito con un estilo personal, como si lo explicara yo mismo: un poco directo y con esos detalles que hacen ver que lo escribí a mano.
 
